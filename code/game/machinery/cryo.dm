@@ -13,7 +13,7 @@
 	uncreated_component_parts = null
 	stat_immune = 0
 
-	var/on = 0
+	var/active = FALSE
 	idle_power_usage = 20
 	active_power_usage = 200
 	clicksound = 'sound/machines/buttonbeep.ogg'
@@ -23,8 +23,8 @@
 	machine_desc = "Uses a supercooled chemical bath to hold living beings in something close to suspended animation. Often paired with specialized medicines to rapidly heal wounds of a patient inside."
 
 	var/temperature_archived
-	var/mob/living/carbon/human/occupant = null
-	var/obj/item/reagent_containers/glass/beaker = null
+	var/mob/living/carbon/human/occupant
+	var/obj/item/reagent_containers/glass/beaker
 
 	var/current_heat_capacity = 50
 
@@ -78,7 +78,7 @@
 			QUEUE_TEMPERATURE_ATOMS(beaker)
 		has_air_contents = TRUE
 
-	if(!on)
+	if(!active)
 		return
 
 	if(occupant)
@@ -102,122 +102,90 @@
 		go_out()
 
 /obj/machinery/atmospherics/unary/cryo_cell/interface_interact(user)
-	ui_interact(user)
+	tgui_interact(user)
 	return TRUE
 
- /**
-  * The ui_interact proc is used to open and update Nano UIs
-  * If ui_interact is not used then the UI will not update correctly
-  * ui_interact is currently defined for /atom/movable (which is inherited by /obj and /mob)
-  *
-  * @param user /mob The mob who is interacting with this ui
-  * @param ui_key string A string key to use for this ui. Allows for multiple unique uis on one obj/mob (defaut value "main")
-  * @param ui /datum/nanoui This parameter is passed by the nanoui process() proc when updating an open ui
-  *
-  * @return nothing
-  */
-/obj/machinery/atmospherics/unary/cryo_cell/ui_interact(mob/user, ui_key = "main", datum/nanoui/ui = null, force_open = 1)
-	if(user == occupant || user.stat)
-		return
+/obj/machinery/atmospherics/unary/cryo_cell/tgui_state(mob/user)
+	return GLOB.default_state
 
-	// this is the data which will be sent to the ui
-	var/data[0]
-	data["isOperating"] = on
-	data["hasOccupant"] = occupant ? 1 : 0
+/obj/machinery/atmospherics/unary/cryo_cell/tgui_interact(mob/user, datum/tgui/ui)
+	ui = SStgui.try_update_ui(user, src, ui)
+	if(!ui)
+		ui = new(user, src, "CryoCell", name)
+		ui.open()
 
-	if (occupant)
-		var/cloneloss = "none"
-		var/amount = occupant.getCloneLoss()
-		if(amount > 50)
-			cloneloss = "severe"
-		else if(amount > 25)
-			cloneloss = "significant"
-		else if(amount > 10)
-			cloneloss = "moderate"
-		else if(amount)
-			cloneloss = "minor"
-		var/scan = medical_scan_results(occupant)
-		scan += "<br><br>Genetic degradation: [cloneloss]"
-		scan = replacetext(scan,"'scan_notice'","'white'")
-		scan = replacetext(scan,"'scan_warning'","'average'")
-		scan = replacetext(scan,"'scan_danger'","'bad'")
-		scan += "<br>Cryostasis factor: [occupant.stasis_value]x"
-		data["occupant"] = scan
+/obj/machinery/atmospherics/unary/cryo_cell/tgui_data(mob/user)
+	var/list/data = list()
 
-	data["cellTemperature"] = round(air_contents.temperature)
-	data["cellTemperatureStatus"] = "good"
+	data["isOperating"] = active
+	data["hasOccupant"] = occupant ? TRUE : FALSE
+
+	var/list/occupantData = list()
+	if(occupant)
+		occupantData["name"] = occupant.name
+		occupantData["stat"] = occupant.stat
+		occupantData["health"] = occupant.health
+		occupantData["maxHealth"] = occupant.maxHealth
+		occupantData["minHealth"] = config.health_threshold_dead
+		occupantData["bruteLoss"] = occupant.getBruteLoss()
+		occupantData["oxyLoss"] = occupant.getOxyLoss()
+		occupantData["toxLoss"] = occupant.getToxLoss()
+		occupantData["fireLoss"] = occupant.getFireLoss()
+		occupantData["bodyTemperature"] = occupant.bodytemperature
+	data["occupant"] = occupantData
+
+	data["cellTemp"] = round(air_contents.temperature)
+	data["cellTempStats"] = "good"
 	if(air_contents.temperature >= temperature_danger_threshhold) // if greater than 273.15 kelvin (0 celsius)
-		data["cellTemperatureStatus"] = "bad"
+		data["cellTempStatus"] = "bad"
 	else if(air_contents.temperature >= temperature_warning_threshhold)
-		data["cellTemperatureStatus"] = "average"
+		data["cellTempStatus"] = "average"
 
-	data["isBeakerLoaded"] = beaker ? 1 : 0
-
+	data["beakerLoaded"] = beaker ? TRUE : FALSE
 	data["beakerLabel"] = null
 	data["beakerVolume"] = 0
 	if(beaker)
 		data["beakerLabel"] = beaker.name
 		data["beakerVolume"] = beaker.reagents.total_volume
 
-	data["fast_stasis_mult"] = fast_stasis_mult
-	data["slow_stasis_mult"] = slow_stasis_mult
-	data["current_stasis_mult"] = current_stasis_mult
+	data["fastStasis"] = fast_stasis_mult
+	data["slowStasis"] = slow_stasis_mult
+	data["currentStasis"] = current_stasis_mult
 
-	// update the ui if it exists, returns null if no ui is passed/found
-	ui = SSnano.try_update_ui(user, src, ui_key, ui, data, force_open)
-	if (!ui)
-		// the ui does not exist, so we'll create a new() one
-		// for a list of parameters and their descriptions see the code docs in \code\modules\nano\nanoui.dm
-		ui = new(user, src, ui_key, "cryo.tmpl", "Cryo Cell Control System", 520, 410)
-		// when the ui is first opened this is the data it will use
-		ui.set_initial_data(data)
-		// open the new ui window
-		ui.open()
-		// auto update every Master Controller tick
-		ui.set_auto_update(1)
+	return data
 
-/obj/machinery/atmospherics/unary/cryo_cell/OnTopic(user, href_list)
-	if(user == occupant)
-		return STATUS_CLOSE
-	. = ..()
+/obj/machinery/atmospherics/unary/cryo_cell/tgui_act(action, params)
+	if(..())
+		return
+	. = TRUE
 
-/obj/machinery/atmospherics/unary/cryo_cell/OnTopic(user, href_list)
-	if(href_list["switchOn"])
-		on = 1
-		update_icon()
-		return TOPIC_REFRESH
-
-	if(href_list["switchOff"])
-		on = 0
-		update_icon()
-		return TOPIC_REFRESH
-
-	if(href_list["ejectBeaker"])
-		if(beaker)
-			beaker.forceMove(get_step(loc, SOUTH))
-			beaker = null
-		return TOPIC_REFRESH
-
-	if(href_list["ejectOccupant"])
-		if(!occupant || isslime(user) || ispAI(user))
-			return TOPIC_HANDLED // don't update UIs attached to this object
-		go_out()
-		return TOPIC_REFRESH
-
-	if(href_list["goFast"])
-		current_stasis_mult = fast_stasis_mult
-		update_icon()
-		return TOPIC_REFRESH
-
-	if(href_list["goRegular"])
-		current_stasis_mult = 1
-		update_icon()
-		return TOPIC_REFRESH
-
-	if(href_list["goSlow"])
-		current_stasis_mult = slow_stasis_mult
-		update_icon()
-		return TOPIC_REFRESH
+	switch(action)
+		if("toggleActive")
+			active = !active
+			update_icon()
+			return TRUE
+		if("ejectBeaker")
+			if(beaker)
+				beaker.forceMove(get_step(loc, SOUTH))
+				beaker = null
+			return TRUE
+		if("ejectOccupant")
+			if(!occupant || isslime(usr) || ispAI(usr))
+				return
+			go_out()
+			return TRUE
+		if("goFast")
+			current_stasis_mult = fast_stasis_mult
+			update_icon()
+			return TRUE
+		if("goRegular")
+			current_stasis_mult = 1
+			update_icon()
+			return TRUE
+		if("goSlow")
+			current_stasis_mult = slow_stasis_mult
+			update_icon()
+			return TRUE
 
 /obj/machinery/atmospherics/unary/cryo_cell/state_transition(singleton/machine_construction/default/new_state)
 	. = ..()
@@ -240,13 +208,13 @@
 
 /obj/machinery/atmospherics/unary/cryo_cell/on_update_icon()
 	ClearOverlays()
-	icon_state = "pod[on]"
+	icon_state = "pod[active]"
 	var/image/I
 
 	if(panel_open)
 		AddOverlays("pod_panel")
 
-	I = image(icon, "pod[on]_top")
+	I = image(icon, "pod[active]_top")
 	I.pixel_z = 32
 	AddOverlays(I)
 
@@ -256,31 +224,31 @@
 		pickle.pixel_z = 11
 		AddOverlays(pickle)
 
-	I = image(icon, "lid[on]")
+	I = image(icon, "lid[active]")
 	AddOverlays(I)
 
-	I = image(icon, "lid[on]_top")
+	I = image(icon, "lid[active]_top")
 	I.pixel_z = 32
 	AddOverlays(I)
 
-	if (powered())
-		var/warn_state = "off"
-		if (on)
-			warn_state = "safe"
-			if (air_contents.temperature >= temperature_danger_threshhold)
-				warn_state = "danger"
-			else if (air_contents.temperature >= temperature_warning_threshhold)
-				warn_state = "warn"
-		I = overlay_image(icon, "lights_[warn_state]")
-		AddOverlays(I)
-		I = overlay_image(icon, "lights_[warn_state]_top")
-		I.pixel_z = 32
-		AddOverlays(I)
-		AddOverlays(emissive_appearance(icon, "lights_mask"))
-		I = emissive_appearance(icon, "lights_mask_top")
-		I.pixel_z = 32
-		AddOverlays(I)
-
+	if(!powered())
+		return
+	var/warn_state = "off"
+	if(active)
+		warn_state = "safe"
+		if(air_contents.temperature >= temperature_danger_threshhold)
+			warn_state = "danger"
+		else if(air_contents.temperature >= temperature_warning_threshhold)
+			warn_state = "warn"
+	I = overlay_image(icon, "lights_[warn_state]")
+	AddOverlays(I)
+	I = overlay_image(icon, "lights_[warn_state]_top")
+	I.pixel_z = 32
+	AddOverlays(I)
+	AddOverlays(emissive_appearance(icon, "lights_mask"))
+	I = emissive_appearance(icon, "lights_mask_top")
+	I.pixel_z = 32
+	AddOverlays(I)
 
 /obj/machinery/atmospherics/unary/cryo_cell/proc/process_occupant()
 	if(air_contents.total_moles < 10)
@@ -334,7 +302,7 @@
 
 /obj/machinery/atmospherics/unary/cryo_cell/CtrlClick(mob/user)
 	if(CanDefaultInteract(user))
-		on = !on
+		active = !active
 		update_icon()
 		return TRUE
 	return FALSE
