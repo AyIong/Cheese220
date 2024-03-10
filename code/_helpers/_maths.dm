@@ -1,3 +1,5 @@
+#define CLAMP01(x) clamp(x, 0, 1)
+
 /// A random real number between low and high inclusive
 #define Frand(low, high) ( rand() * ((high) - (low)) + (low) )
 
@@ -62,6 +64,8 @@
 /// The cotangent of degrees
 #define Cot(degrees) (1 / tan(degrees))
 
+// Similar to clamp but the bottom rolls around to the top and vice versa. min is inclusive, max is exclusive
+#define WRAP(val, min, max) clamp(( min == max ? min : (val) - (round(((val) - (min))/((max) - (min))) * ((max) - (min))) ),min,max)
 
 /// The 2-argument arctangent of x and y
 /proc/Atan2(x, y)

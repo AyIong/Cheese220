@@ -5,8 +5,6 @@
 
 #define PUBLIC_GAME_MODE SSticker.master_mode
 
-#define CLAMP01(x) clamp(x, 0, 1)
-
 /**
  * Get the turf that `A` resides in, regardless of any containers.
  *

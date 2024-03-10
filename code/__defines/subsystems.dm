@@ -54,5 +54,6 @@
 #define SS_INIT_AI              -21
 #define SS_INIT_AIFAST          -22
 #define SS_INIT_PING            -85
-#define SS_INIT_CHAT            -90 // Should be lower to ensure chat remains smooth during init.
+#define SS_INIT_STATPANELS 		-90
+#define SS_INIT_CHAT            -95 // Should be lower to ensure chat remains smooth during init.
 #define SS_INIT_UNIT_TESTS      -100

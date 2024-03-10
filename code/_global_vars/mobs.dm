@@ -3,6 +3,8 @@ GLOBAL_LIST_EMPTY(admins)    //all clients whom are admins
 GLOBAL_PROTECT(admins)
 GLOBAL_LIST_EMPTY(ckey_directory) //all ckeys with associated client
 
+/// List of all new player mobs in the lobby
+GLOBAL_LIST_EMPTY(new_player_mobs)
 
 /// List of all mobs with clients currently attached
 GLOBAL_LIST_EMPTY(player_list)

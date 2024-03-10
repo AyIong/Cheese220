@@ -71,6 +71,9 @@
 #define MAX_DESC_LEN          256
 #define MAX_TEXTFILE_LENGTH 128000		// 512GQ file
 
+/// Removes characters incompatible with file names.
+#define SANITIZE_FILENAME(text) (GLOB.filename_forbidden_chars.Replace(text, ""))
+
 // Event defines.
 #define EVENT_LEVEL_MUNDANE  1
 #define EVENT_LEVEL_MODERATE 2
